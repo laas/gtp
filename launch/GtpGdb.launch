@@ -1,0 +1,10 @@
+<launch>
+    <rosparam command="load" file="$(find move3d_facts)/Parameters/FactsParameters.yaml" />
+
+    <env name="ROSCONSOLE_CONFIG_FILE"
+    value="$(find move3d_facts)/launch/debug_console.conf"/>
+
+        <!--node name="move3d_facts" pkg="move3d_facts" type="move3d_facts" output="screen" launch-prefix="valgrind -v"/-->  <!-- Launch the move3dfacts node -->
+        <node name="gtp" pkg="gtp" type="gtp" output="screen" launch-prefix="xterm -e gdb --args"/>  <!-- Launch the move3dfacts node -->
+        <!--node name="move3d_facts" pkg="move3d_facts" type="move3d_facts" output="screen"/-->  <!-- Launch the move3dfacts node -->
+</launch>

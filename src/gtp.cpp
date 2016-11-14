@@ -21,27 +21,18 @@
 #include <boost/tuple/tuple.hpp>
 #include <boost/foreach.hpp>
 
-//transfered in the CMakeLists.txt
-//#define LIGHT_PLANNER
-//#define GRASP_PLANNING
-//#define USE_GSL
-//#define USE_GBM
-//#define MULTILOCALPATH
-#include <libmove3d/planners/API/project.hpp>
-#include <libmove3d/planners/GTP/taskManagerInterface.hpp>
-#include <libmove3d/planners/Logging/Logger.h>
+#include "gtp/gtpros.hpp"
 
-#include <tr1/shared_ptr.h>
-
-#include <move3d_ros_lib/scenemanager.h>
-#include <move3d_ros_lib/savescenariosrv.h>
-
-#include <std_srvs/Trigger.h>
-#include <std_srvs/SetBool.h>
-
-
+using namespace move3d;
 int main (int argc,char **argv){
     ros::init(argc, argv, "gtp");
     ros::NodeHandle node;
 
+    GtpRos gtp_ros(&node);
+    if(gtp_ros.init()){
+        ros::spin();
+    }else{
+        return 1;
+    }
+    return 0;
 }

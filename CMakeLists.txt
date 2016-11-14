@@ -141,6 +141,7 @@ catkin_package(
 # include_directories(include)
 # TODO: Check names of system library include directories (Boost, MOVE3D-PLANNERS, Eigen3, MOVE3D)
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${MOVE3D-PLANNERS_INCLUDE_DIR}
@@ -159,7 +160,10 @@ include_directories(
 # add_dependencies(gtp_ros ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-add_executable(gtp src/gtp.cpp)
+add_executable(gtp
+    src/gtp.cpp
+    src/gtpros.cpp
+)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
