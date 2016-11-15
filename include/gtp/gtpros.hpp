@@ -12,7 +12,6 @@
 
 #include <gtp_ros_msgs/PlanAction.h>
 #include <gtp_ros_msgs/PublishTraj.h>
-#include <gtp_ros_msgs/Trajectory.h>
 #include <gtp_ros_msgs/GetDetails.h>
 
 #include <message_filters/subscriber.h>
