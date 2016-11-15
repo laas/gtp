@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
   move3d_ros_lib
   toaster_msgs
+  trajectory_msgs
 )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")

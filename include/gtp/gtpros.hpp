@@ -13,6 +13,7 @@
 #include <gtp_ros_msgs/PlanAction.h>
 #include <gtp_ros_msgs/PublishTraj.h>
 #include <gtp_ros_msgs/GetDetails.h>
+#include <trajectory_msgs/JointTrajectory.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/exact_time.h>
