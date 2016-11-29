@@ -14,6 +14,9 @@
 #include <libmove3d/planners/GTP/GTPTools/solutionTools/gtpTrajectoryType.hpp>
 #include <libmove3d/include/localpath.h>
 
+#include <gtp_ros_msg/GTPTraj.h>
+#include <algorithm>
+
 
 #include <boost/foreach.hpp>
 #define foreach BOOST_FOREACH
@@ -43,6 +46,8 @@ GtpRos::~GtpRos()
     if(robots_sub) delete robots_sub;
 }
 
+void dummy_func(void){}
+
 bool GtpRos::init()
 {
 
@@ -65,7 +70,7 @@ bool GtpRos::init()
     //sync->registerCallback(boost::bind(&GtpRos::worldUpdateCB,this,_1,_2,_3));
     sync->registerCallback(boost::bind(&GtpRos::worldUpdateCB,this,_1,_2,_3));
 
-    _traj_pub = _nh->advertise<trajectory_msgs::JointTrajectory>("/gtp/trajectory",10);
+    _traj_pub = _nh->advertise<gtp_ros_msg::GTPTraj>("/gtp/trajectory",10);
 
     //init move3d
     logm3d::initializePlannerLogger();
@@ -77,6 +82,7 @@ bool GtpRos::init()
         _sc_mgr->setP3dPath(p3d_file);
         _sc_mgr->setScePath(sce_file);
         _sc_mgr->addModule("GTP");
+        _sc_mgr->addModule("HriCostFunction");
         _sc_mgr->createScene();
     }else{
         ROS_FATAL("no /move3d/p3dFile param is set");
@@ -84,6 +90,8 @@ bool GtpRos::init()
     }
 
     _tmi=TMI;
+
+    ext_g3d_draw_allwin_active = dummy_func;
 
     _saveScenarioSrv = new SaveScenarioSrv(_sc_mgr,_nh);
     _saveScenarioSrv->advertise("/gtp/save_scenario");
@@ -178,7 +186,6 @@ void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
         ROS_DEBUG("failed to find a solution");
         result.result.success=false;
         result.result.status="no_solution";
-        _as->setSucceeded(result);
     }else{
         result.result.id.taskId = TSol->getTask()->getId();
         result.result.id.alternativeId=TSol->getId();
@@ -187,6 +194,10 @@ void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
         vector<TaskSubSolution*> tss=TSol->getAllTSS();
         foreach(TaskSubSolution *ss,tss){
             gtp_ros_msgs::SubSolution subsol_msg;
+            if(ss->getSubSolutionName() == "approach"){
+                ROS_DEBUG("refining...");
+                ss->refineTraj();
+            }
             subsol_msg.agent = ss->getRobot()->getName();
             subsol_msg.armId= ss->getArmId();
             subsol_msg.id=ss->getId();
@@ -195,8 +206,8 @@ void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
 
             result.result.solutionParts.push_back(subsol_msg);
         }
-        _as->setSucceeded(result);
     }
+    _as->setSucceeded(result);
 
     //_as->setAborted();
 }
@@ -267,56 +278,69 @@ bool GtpRos::publishTrajCb(gtp_ros_msgs::PublishTrajRequest &req, gtp_ros_msgs::
         resp.ok=false;
         return true;
     }
-    trajectory_msgs::JointTrajectory t_msg;
+    gtp_ros_msg::GTPTraj t_msg;
+    t_msg.name="traj";
     RobotDevice *r=tss->getRobot();
     if(r->getHriAgent()->type==HRI_PR2){
-        t_msg.joint_names.push_back("navX");
-        t_msg.joint_names.push_back("navY");
-        t_msg.joint_names.push_back("dummyZ");
-        t_msg.joint_names.push_back("dummyRX");
-        t_msg.joint_names.push_back("dummyRY");
-        t_msg.joint_names.push_back("RotTheta");
-        t_msg.joint_names.push_back("torso_lift_joint");
-        t_msg.joint_names.push_back("head_pan_joint");
-        t_msg.joint_names.push_back("head_tilt_joint");
-        t_msg.joint_names.push_back("laser_tilt_mount_joint");
+        t_msg.traj.joint_names.push_back("navX");
+        t_msg.traj.joint_names.push_back("navY");
+        t_msg.traj.joint_names.push_back("dummyZ");
+        t_msg.traj.joint_names.push_back("dummyRX");
+        t_msg.traj.joint_names.push_back("dummyRY");
+        t_msg.traj.joint_names.push_back("RotTheta");
+        t_msg.traj.joint_names.push_back("torso_lift_joint");
+        t_msg.traj.joint_names.push_back("head_pan_joint");
+        t_msg.traj.joint_names.push_back("head_tilt_joint");
+        t_msg.traj.joint_names.push_back("laser_tilt_mount_joint");
 
-        t_msg.joint_names.push_back("r_shoulder_pan_joint");
-        t_msg.joint_names.push_back("r_shoulder_lift_joint");
-        t_msg.joint_names.push_back("r_upper_arm_roll_joint");
-        t_msg.joint_names.push_back("r_elbow_flex_joint");
-        t_msg.joint_names.push_back("r_forearm_roll_joint");
-        t_msg.joint_names.push_back("r_wrist_flex_joint");
-        t_msg.joint_names.push_back("r_wrist_roll_joint");
-        t_msg.joint_names.push_back("r_gripper_joint");
+        t_msg.traj.joint_names.push_back("r_shoulder_pan_joint");
+        t_msg.traj.joint_names.push_back("r_shoulder_lift_joint");
+        t_msg.traj.joint_names.push_back("r_upper_arm_roll_joint");
+        t_msg.traj.joint_names.push_back("r_elbow_flex_joint");
+        t_msg.traj.joint_names.push_back("r_forearm_roll_joint");
+        t_msg.traj.joint_names.push_back("r_wrist_flex_joint");
+        t_msg.traj.joint_names.push_back("r_wrist_roll_joint");
+        t_msg.traj.joint_names.push_back("r_gripper_joint");
 
-        t_msg.joint_names.push_back("dummyGripper");
+        t_msg.traj.joint_names.push_back("dummyGripper");
 
 
-        t_msg.joint_names.push_back("l_shoulder_pan_joint");
-        t_msg.joint_names.push_back("l_shoulder_lift_joint");
-        t_msg.joint_names.push_back("l_upper_arm_roll_joint");
-        t_msg.joint_names.push_back("l_elbow_flex_joint");
-        t_msg.joint_names.push_back("l_forearm_roll_joint");
-        t_msg.joint_names.push_back("l_wrist_flex_joint");
-        t_msg.joint_names.push_back("l_wrist_roll_joint");
-        t_msg.joint_names.push_back("l_gripper_joint");
+        t_msg.traj.joint_names.push_back("l_shoulder_pan_joint");
+        t_msg.traj.joint_names.push_back("l_shoulder_lift_joint");
+        t_msg.traj.joint_names.push_back("l_upper_arm_roll_joint");
+        t_msg.traj.joint_names.push_back("l_elbow_flex_joint");
+        t_msg.traj.joint_names.push_back("l_forearm_roll_joint");
+        t_msg.traj.joint_names.push_back("l_wrist_flex_joint");
+        t_msg.traj.joint_names.push_back("l_wrist_roll_joint");
+        t_msg.traj.joint_names.push_back("l_gripper_joint");
+
+        t_msg.traj.joint_names.push_back("dummyLGripper");
     }
 
+    int nb_dof = std::min<long unsigned int>(t_msg.traj.joint_names.size()+6,r->getRobotStruct()->nb_dof);
     if(tss->getSubSolutionType() == GTPTrajectoryType::Manipulate){
         p3d_traj *t=tss->getTraj();
         if(r && t && t->courbePt){
-            localpath *lp = t->courbePt;
+            localpath *lp = t->courbePt,*last_lp(0);
             while(lp){
                 trajectory_msgs::JointTrajectoryPoint pt;
                 configPt q=lp->config_at_param(r->getRobotStruct(),lp,0);
-                for(int i=0;i<r->getRobotStruct()->nb_dof;++i){
+                for(int i=6;i<nb_dof;++i){
                     pt.positions.push_back(q[i]);
                 }
-                t_msg.points.push_back(pt);
+                t_msg.traj.points.push_back(pt);
 
+                last_lp=lp;
                 lp=lp->next_lp;
             }
+            trajectory_msgs::JointTrajectoryPoint pt;
+            lp=last_lp;
+            configPt q=lp->config_at_param(r->getRobotStruct(),lp,lp->range_param);
+            for(int i=6;i<nb_dof;++i){
+                pt.positions.push_back(q[i]);
+            }
+            t_msg.traj.points.push_back(pt);
+
             _traj_pub.publish(t_msg);
             resp.ok=true;
             resp.status="OK";
@@ -325,6 +349,7 @@ bool GtpRos::publishTrajCb(gtp_ros_msgs::PublishTrajRequest &req, gtp_ros_msgs::
             resp.status="no_traj_or_robot";
         }
     }else{
+        ROS_DEBUG("not a Manipulate subtask %s",tss->getSubSolutionName().c_str());
         vector<p3d_point> navVect = tss->getNavVector();
         foreach(p3d_point p,navVect){
             trajectory_msgs::JointTrajectoryPoint pt;
@@ -379,7 +404,7 @@ void GtpRos::worldUpdateCB(const ObjectListStampedConstPtr &object_list, const H
             const toaster_msgs::Joint &jnt = r.meAgent.skeletonJoint[i];
             q.push_back(jnt.position);
         }
-        bool ok = _sc_mgr->updateRobot(r.meAgent.meEntity.id,r.meAgent.meEntity.pose,q);
+        bool ok = _sc_mgr->updateRobot(r.meAgent.meEntity.name,r.meAgent.meEntity.pose,q);
         if(!ok){
             //failure, try to provide the joint list name to scMgr
             ROS_DEBUG("try to provide the joint list name to scMgr");
@@ -389,18 +414,18 @@ void GtpRos::worldUpdateCB(const ObjectListStampedConstPtr &object_list, const H
                 names.push_back(name);
             }
             _sc_mgr->setDofNameOrdered(r.meAgent.meEntity.name,names);
-            _sc_mgr->updateRobot(r.meAgent.meEntity.id,r.meAgent.meEntity.pose,q);
+            _sc_mgr->updateRobot(r.meAgent.meEntity.name,r.meAgent.meEntity.pose,q);
         }
     }
     if(human_list->humanList.size()){
         ROS_WARN_ONCE("No support for humans yet. Cannot update human position");
         foreach (const toaster_msgs::Human &h, human_list->humanList) {
-            ROS_DEBUG("Update human %s (%s)",h.meAgent.meEntity.name.c_str(),h.meAgent.meEntity.id.c_str());
+            ROS_DEBUG("Update human %s (%s)",h.meAgent.meEntity.name.c_str(),h.meAgent.meEntity.name.c_str());
             std::map<std::string, geometry_msgs::Pose> joints;
             for(uint i=0;i<h.meAgent.skeletonNames.size();++i){
                 joints[h.meAgent.skeletonNames[i]]=h.meAgent.skeletonJoint[i].meEntity.pose;
             }
-            _sc_mgr->updateHuman(h.meAgent.meEntity.id,h.meAgent.meEntity.pose,joints);
+            _sc_mgr->updateHuman(h.meAgent.meEntity.name,h.meAgent.meEntity.pose,joints);
         }
     }
 
