@@ -74,7 +74,7 @@ protected:
     ros::ServiceServer _get_details_srv;
     ros::ServiceServer _set_attach_task_srv;
     ros::ServiceServer _set_attach_obj_srv;
-    ros::Publisher _traj_pub;
+    ros::Publisher _traj_pub, _ros_traj_pub;
 
     typedef message_filters::sync_policies::ExactTime<toaster_msgs::ObjectListStamped,toaster_msgs::HumanListStamped,toaster_msgs::RobotListStamped> SyncPolicy;
     message_filters::Synchronizer<SyncPolicy> *sync;

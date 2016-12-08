@@ -81,6 +81,7 @@ bool GtpRos::init()
     sync->registerCallback(boost::bind(&GtpRos::worldUpdateCB,this,_1,_2,_3));
 
     _traj_pub = _nh->advertise<gtp_ros_msg::GTPTraj>("/gtp/trajectory",10);
+    _ros_traj_pub = _nh->advertise<trajectory_msgs::JointTrajectory>("/gtp/ros_trajectory",10);
 
     //init move3d
     logm3d::initializePlannerLogger();
@@ -465,6 +466,7 @@ bool GtpRos::publishTrajCb(gtp_ros_msgs::PublishTrajRequest &req, gtp_ros_msgs::
             t_msg.traj.points.push_back(pt);
 
             _traj_pub.publish(t_msg);
+            _ros_traj_pub.publish(t_msg.traj);
             resp.ok=true;
             resp.status="OK";
         }else{
@@ -479,8 +481,10 @@ bool GtpRos::publishTrajCb(gtp_ros_msgs::PublishTrajRequest &req, gtp_ros_msgs::
             pt.positions.push_back(p.x);
             pt.positions.push_back(p.y);
             pt.positions.push_back(p.z);
+            t_msg.traj.points.push_back(pt);
         }
         _traj_pub.publish(t_msg);
+        _ros_traj_pub.publish(t_msg.traj);
         resp.ok=true;
         resp.status="OK";
     }
