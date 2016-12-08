@@ -31,7 +31,7 @@ extern taskManagerInterface *TMI;
 namespace move3d{
 
 GtpRos::GtpRos(ros::NodeHandle *nh):
-    _nh(nh),_tmi(TMI),_updating(0),
+    _nh(nh),_nh_ws(0),_ws_cb_queue(0),_sc_mgr(0),_tmi(TMI),_updating(0),
     sync(0),object_sub(0),human_sub(0),robots_sub(0)
 {
 }
@@ -40,6 +40,8 @@ GtpRos::~GtpRos()
 {
     _as->shutdown();
     delete _as;
+    if (_ws_cb_queue) delete _ws_cb_queue;
+    if(_nh_ws) delete _nh_ws;
     if(sync) delete sync;
     if(object_sub) delete object_sub;
     if(human_sub) delete human_sub;
@@ -53,6 +55,10 @@ bool GtpRos::init()
 
     _sc_mgr = new SceneManager(_nh);
     _sc_mgr->fetchDofCorrespParam("/move3d/dof_name_corresp/PR2_ROBOT","PR2_ROBOT");
+
+    _ws_cb_queue = new ros::CallbackQueue();
+    _nh_ws = new ros::NodeHandle();
+    _nh_ws->setCallbackQueue(_ws_cb_queue);
 
     _update_srv = _nh->advertiseService("/gtp/update",&GtpRos::updateSrvCb,this);
     _publishTraj_srv = _nh->advertiseService("/gtp/publishTraj",&GtpRos::publishTrajCb,this);
@@ -91,7 +97,7 @@ bool GtpRos::init()
 
     _tmi=TMI;
 
-    ext_g3d_draw_allwin_active = dummy_func;
+    ext_g3d_draw_allwin_active = dummy_func; //TODO move this to scenemanager!?
 
     _saveScenarioSrv = new SaveScenarioSrv(_sc_mgr,_nh);
     _saveScenarioSrv->advertise("/gtp/save_scenario");
@@ -101,21 +107,33 @@ bool GtpRos::init()
     return true;
 }
 
+void GtpRos::run()
+{
+    ros::AsyncSpinner spinner(1),spinner2(1,_ws_cb_queue);
+    spinner.start();
+    spinner2.start();
+    ros::waitForShutdown();
+}
+
 void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
 {
     using namespace gtp_ros_msgs;
     PlanResult result;
+    PlanFeedback feedback;
     result.result.id.alternativeId=-1;
     result.result.id.taskId=-1;
     result.result.success=false;
     if(request->request.updateBefore && !_updating){
         triggerUpdate();
     }
-    ROS_DEBUG_COND(_updating,"Wait for end of update");
-    while(_updating){
-        usleep(100);
+    if(_updating){
+        feedback.step="wait for update";
+        _as->publishFeedback(feedback);
     }
+    waitForUpdate();
 
+    feedback.step="planning task";
+    _as->publishFeedback(feedback);
     ROS_DEBUG("action planning request: %s",request->request.taskType.c_str());
     //hatp=ClearGTPInputs
     _tmi->clearAllInputs();
@@ -183,10 +201,14 @@ void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
     _tmi->callGTP();
     TaskSolution* TSol = _tmi->getCurrentSol();
     if(!TSol){
+        feedback.step="no solution";
+        _as->publishFeedback(feedback);
         ROS_DEBUG("failed to find a solution");
         result.result.success=false;
         result.result.status="no_solution";
     }else{
+        feedback.step="post processing solution";
+        _as->publishFeedback(feedback);
         result.result.id.taskId = TSol->getTask()->getId();
         result.result.id.alternativeId=TSol->getId();
         result.result.status="OK";
@@ -220,8 +242,84 @@ bool GtpRos::updateSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerRespons
         return true;
     }
     triggerUpdate();
+    waitForUpdate();
     resp.success=true;
     return true;
+}
+
+bool GtpRos::cancelUpdateSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerResponse &resp)
+{
+    _updating=false;
+    destroyUpdateSubs();
+    resp.success=true;
+    resp.message="ok";
+    return true;
+}
+
+bool GtpRos::setAttachmentCb(gtp_ros_msgs::SetAttachmentRequest &req, gtp_ros_msgs::SetAttachmentResponse &resp)
+{
+    if(!req.add_not_remove){
+        ROS_INFO("removing all attachments");
+        _tmi->clearAttachements();
+        resp.success=true;
+        resp.status="";
+        return true;
+    }
+
+    //add attachment:
+
+    RobotDevice *agent =  _scene->getRobotByName(req.agent);
+    int armid=req.armId;
+    if(!agent){
+        ROS_ERROR("SetAttachment: agent %s not found",req.agent.c_str());
+        resp.success=false;
+        resp.status="agent not found";
+        return true;
+    }
+    RobotDevice *object= _scene->getRobotByName(req.object);
+    if(!object){
+        ROS_ERROR("SetAttachment: object %s not found",req.agent.c_str());
+        resp.success=false;
+        resp.status="object not found";
+        return true;
+    }
+
+    bool ok=_tmi->addAttachementFromObject(agent,object,armid);
+    if(!ok){
+        resp.success=false;
+        resp.status="no grasp list";
+        return true;
+    }else{
+        resp.success=true;
+        resp.status="";
+        return true;
+    }
+
+    return true;
+}
+
+bool GtpRos::setAttachmentFromTaskCb(gtp_ros_msgs::SetAttachmentFromTaskRequest &req, gtp_ros_msgs::SetAttachmentFromTaskResponse &resp)
+{
+    if(!req.add_not_remove){
+        ROS_INFO("removing all attachments");
+        _tmi->clearAttachements();
+        resp.success=true;
+        resp.status="";
+        return true;
+    }
+
+    //set attachment:
+    bool ok = _tmi->addAttachementsFromTask(req.actionId.taskId,req.actionId.alternativeId);
+    if(!ok){
+        resp.success=false;
+        resp.status="no such task";
+        return true;
+    }else{
+        resp.success=true;
+        resp.status="";
+        return true;
+    }
+
 }
 
 void GtpRos::triggerUpdate()
@@ -230,10 +328,21 @@ void GtpRos::triggerUpdate()
     //sync = new message_filters::Synchronizer<SyncPolicy>(SyncPolicy(10),*object_sub,*human_sub,*robots_sub);
     //sync->registerCallback(boost::bind(&GtpRos::worldUpdateCB,this,_1,_2,_3));
     //sync->registerCallback(boost::bind(&GtpRos::worldUpdateCB,this,_1,_2,_3));
-    object_sub->subscribe(*_nh,"/pdg/objectList",1);
-    human_sub->subscribe(*_nh,"/pdg/humanList",1);
-    robots_sub->subscribe(*_nh,"/pdg/robotList",1);
+    object_sub->subscribe(*_nh_ws,"/pdg/objectList",1);
+    human_sub->subscribe(*_nh_ws,"/pdg/humanList",1);
+    robots_sub->subscribe(*_nh_ws,"/pdg/robotList",1);
     ROS_DEBUG("Update triggered");
+}
+
+void GtpRos::waitForUpdate()
+{
+    if(!_updating) return;
+    ROS_DEBUG("Wait for end of update");
+    while(_updating){
+        _ws_cb_queue->callAvailable();
+        usleep(100);
+    }
+    ROS_DEBUG("Wait for update OK");
 }
 
 void GtpRos::destroyUpdateSubs()

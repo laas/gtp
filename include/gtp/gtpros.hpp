@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include <ros/ros.h>
+#include <ros/callback_queue.h>
 #include <actionlib/server/simple_action_server.h>
 
 #include <move3d_ros_lib/scenemanager.h>
@@ -40,12 +41,15 @@ public:
     void worldUpdateCB(const toaster_msgs::ObjectListStampedConstPtr &object_list, const toaster_msgs::HumanListStampedConstPtr &human_list, const toaster_msgs::RobotListStampedConstPtr &robot_list);
     bool updateSrvCb(std_srvs::TriggerRequest &req,std_srvs::TriggerResponse &resp);
     void triggerUpdate();
+    void waitForUpdate();
     void destroyUpdateSubs();
     bool publishTrajCb(gtp_ros_msgs::PublishTrajRequest &req,gtp_ros_msgs::PublishTrajResponse &resp);
     bool getDetailsCb(gtp_ros_msgs::GetDetailsRequest &req,gtp_ros_msgs::GetDetailsResponse &resp);
 
 protected:
     ros::NodeHandle *_nh;
+    ros::NodeHandle *_nh_ws;
+    ros::CallbackQueue *_ws_cb_queue;
     actionlib::SimpleActionServer<gtp_ros_msgs::PlanAction> *_as;
     //gtp_ros_msgs::PlanResult _result;
     SceneManager *_sc_mgr;
