@@ -139,6 +139,16 @@ void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
     }
     waitForUpdate();
 
+    foreach(const gtp_ros_msgs::ActionId &att_from,request->request.setAttachmentsFrom){
+        bool ok=_tmi->addAttachementsFromTask(att_from.taskId,att_from.alternativeId);
+        if(!ok){
+            ROS_ERROR("Cannot set attachment from task %li %li: no such task",att_from.taskId,att_from.alternativeId);
+            result.result.success=false;
+            result.result.status = "no_task_for_set_attachments";
+            _as->setSucceeded(result);
+        }
+    }
+
     feedback.step="planning task";
     _as->publishFeedback(feedback);
     ROS_DEBUG("action planning request: %s",request->request.taskType.c_str());
