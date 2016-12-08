@@ -14,6 +14,8 @@
 #include <gtp_ros_msgs/PlanAction.h>
 #include <gtp_ros_msgs/PublishTraj.h>
 #include <gtp_ros_msgs/GetDetails.h>
+#include <gtp_ros_msgs/SetAttachment.h>
+#include <gtp_ros_msgs/SetAttachmentFromTask.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/exact_time.h>
@@ -28,6 +30,7 @@
 #include <std_srvs/Trigger.h>
 
 class taskManagerInterface;
+class Scene;
 namespace move3d{
 class GtpRos
 {
@@ -36,10 +39,18 @@ public:
     ~GtpRos();
 
     bool init();
+    void run();
 
     void planCb(const gtp_ros_msgs::PlanGoalConstPtr &request);
+    /**
+     * @brief worldUpdateCB
+     * @note clear attachments previously added with SetAttachment or SetAttachmentFromTask
+     */
     void worldUpdateCB(const toaster_msgs::ObjectListStampedConstPtr &object_list, const toaster_msgs::HumanListStampedConstPtr &human_list, const toaster_msgs::RobotListStampedConstPtr &robot_list);
     bool updateSrvCb(std_srvs::TriggerRequest &req,std_srvs::TriggerResponse &resp);
+    bool cancelUpdateSrvCb(std_srvs::TriggerRequest &req,std_srvs::TriggerResponse &resp);
+    bool setAttachmentCb(gtp_ros_msgs::SetAttachmentRequest &req, gtp_ros_msgs::SetAttachmentResponse &resp);
+    bool setAttachmentFromTaskCb(gtp_ros_msgs::SetAttachmentFromTaskRequest &req, gtp_ros_msgs::SetAttachmentFromTaskResponse &resp);
     void triggerUpdate();
     void waitForUpdate();
     void destroyUpdateSubs();
@@ -53,12 +64,16 @@ protected:
     actionlib::SimpleActionServer<gtp_ros_msgs::PlanAction> *_as;
     //gtp_ros_msgs::PlanResult _result;
     SceneManager *_sc_mgr;
+    Scene *_scene;
     taskManagerInterface *_tmi;
 
     SaveScenarioSrv *_saveScenarioSrv;
     ros::ServiceServer _update_srv;
+    ros::ServiceServer _cancel_update_srv;
     ros::ServiceServer _publishTraj_srv;
     ros::ServiceServer _get_details_srv;
+    ros::ServiceServer _set_attach_task_srv;
+    ros::ServiceServer _set_attach_obj_srv;
     ros::Publisher _traj_pub;
 
     typedef message_filters::sync_policies::ExactTime<toaster_msgs::ObjectListStamped,toaster_msgs::HumanListStamped,toaster_msgs::RobotListStamped> SyncPolicy;

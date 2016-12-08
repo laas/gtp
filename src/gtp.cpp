@@ -30,7 +30,7 @@ int main (int argc,char **argv){
 
     GtpRos gtp_ros(&node);
     if(gtp_ros.init()){
-        ros::spin();
+        gtp_ros.run();
     }else{
         return 1;
     }

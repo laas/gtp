@@ -13,6 +13,7 @@
 #include <libmove3d/planners/GTP/GTPTools/solutionTools/taskSolution.hpp>
 #include <libmove3d/planners/GTP/GTPTools/solutionTools/gtpTrajectoryType.hpp>
 #include <libmove3d/include/localpath.h>
+#include <libmove3d/planners/API/scene.hpp>
 
 #include <gtp_ros_msg/GTPTraj.h>
 #include <algorithm>
@@ -31,7 +32,7 @@ extern taskManagerInterface *TMI;
 namespace move3d{
 
 GtpRos::GtpRos(ros::NodeHandle *nh):
-    _nh(nh),_nh_ws(0),_ws_cb_queue(0),_sc_mgr(0),_tmi(TMI),_updating(0),
+    _nh(nh),_nh_ws(0),_ws_cb_queue(0),_sc_mgr(0),_scene(0),_tmi(TMI),_updating(0),
     sync(0),object_sub(0),human_sub(0),robots_sub(0)
 {
 }
@@ -61,8 +62,11 @@ bool GtpRos::init()
     _nh_ws->setCallbackQueue(_ws_cb_queue);
 
     _update_srv = _nh->advertiseService("/gtp/update",&GtpRos::updateSrvCb,this);
+    _cancel_update_srv = _nh_ws->advertiseService("/gtp/cancel_update",&GtpRos::cancelUpdateSrvCb,this);
     _publishTraj_srv = _nh->advertiseService("/gtp/publishTraj",&GtpRos::publishTrajCb,this);
     _get_details_srv = _nh->advertiseService("/gtp/getDetails",&GtpRos::getDetailsCb,this);
+    _set_attach_task_srv = _nh->advertiseService("/gtp/setAttachmentFromTask",&GtpRos::setAttachmentFromTaskCb,this);
+    _set_attach_obj_srv = _nh->advertiseService("/gtp/setAttachment",&GtpRos::setAttachmentCb,this);
 
     bool updateBaseOnly(0);
     _nh->param("/move3d/update_base_only",updateBaseOnly,false);
@@ -90,6 +94,8 @@ bool GtpRos::init()
         _sc_mgr->addModule("GTP");
         _sc_mgr->addModule("HriCostFunction");
         _sc_mgr->createScene();
+
+        _scene=_sc_mgr->project()->getActiveScene();
     }else{
         ROS_FATAL("no /move3d/p3dFile param is set");
         return false;
@@ -182,15 +188,22 @@ void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
         WS = _tmi->getInitWS();
     }
 
-    if (!WS)
+    if (!WS && taskId<0 )
     {
-        ROS_DEBUG("no world state with this Ids, creating a new one from current");
+        ROS_DEBUG("creating a new WorldState from current");
         p3d_destroy_all_grasps();
         WS = new WorldState(global_Project->getActiveScene());
         _tmi->getTaskManager()->addWorldState(WS);
         WS->saveAll();
         WS->setAttachements(_tmi->getAttachements());
     }
+     if(!WS){
+         ROS_ERROR("No world state/wrong world state specification for taskId: %i, altId: %i",taskId,taskAltId);
+         result.result.success=false;
+         result.result.status = "no_worldstate";
+         _as->setSucceeded(result);
+         return;
+     }
 
     _tmi->setType(_tmi->getTaskManager()->getTaskIdFromString(type));
     _tmi->setTypeStr(type);
@@ -251,6 +264,7 @@ bool GtpRos::cancelUpdateSrvCb(std_srvs::TriggerRequest &req, std_srvs::TriggerR
 {
     _updating=false;
     destroyUpdateSubs();
+    ROS_INFO("Update canceled");
     resp.success=true;
     resp.message="ok";
     return true;
@@ -504,6 +518,7 @@ bool GtpRos::getDetailsCb(gtp_ros_msgs::GetDetailsRequest &req, gtp_ros_msgs::Ge
 
 void GtpRos::worldUpdateCB(const ObjectListStampedConstPtr &object_list, const HumanListStampedConstPtr &human_list, const RobotListStampedConstPtr &robot_list){
     ROS_DEBUG("updating");
+    _tmi->clearAttachements();
     foreach(const Object &o,object_list->objectList){
         _sc_mgr->updateObject(o.meEntity.name,o.meEntity.pose);
     }
