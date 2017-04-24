@@ -55,7 +55,7 @@ bool GtpRos::init()
 {
 
     _sc_mgr = new SceneManager(_nh);
-    _sc_mgr->fetchDofCorrespParam("/move3d/dof_name_corresp/PR2_ROBOT","PR2_ROBOT");
+    //_sc_mgr->fetchDofCorrespParam("/move3d/dof_name_corresp/PR2_ROBOT","PR2_ROBOT");
 
     _ws_cb_queue = new ros::CallbackQueue();
     _nh_ws = new ros::NodeHandle();
@@ -101,6 +101,8 @@ bool GtpRos::init()
         ROS_FATAL("no /move3d/p3dFile param is set");
         return false;
     }
+
+    _sc_mgr->fetchDofCorrespParam("/move3d/dof_name_corresp");
 
     _tmi=TMI;
 
@@ -229,7 +231,8 @@ void GtpRos::planCb(const gtp_ros_msgs::PlanGoalConstPtr &request)
         _as->publishFeedback(feedback);
         ROS_DEBUG("failed to find a solution");
         result.result.success=false;
-        result.result.status="no_solution";
+        //result.result.status="no_solution";
+        result.result.status=_tmi->getCurrentPN()->SD->getStringMapEntry("returnReport");
     }else{
         feedback.step="post processing solution";
         _as->publishFeedback(feedback);
