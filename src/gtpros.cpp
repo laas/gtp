@@ -14,6 +14,8 @@
 #include <libmove3d/planners/GTP/GTPTools/solutionTools/gtpTrajectoryType.hpp>
 #include <libmove3d/include/localpath.h>
 #include <libmove3d/planners/API/scene.hpp>
+#include <libmove3d/planners/API/Device/robot.hpp>
+#include <libmove3d/planners/API/Device/joint.hpp>
 
 #include <gtp_ros_msg/GTPTraj.h>
 #include <algorithm>
@@ -23,6 +25,7 @@
 #define foreach BOOST_FOREACH
 
 typedef Robot RobotDevice;
+typedef Joint JointDevice;
 
 using namespace std;
 using namespace toaster_msgs;
@@ -452,6 +455,21 @@ bool GtpRos::publishTrajCb(gtp_ros_msgs::PublishTrajRequest &req, gtp_ros_msgs::
         t_msg.traj.joint_names.push_back("l_gripper_joint");
 
         t_msg.traj.joint_names.push_back("dummyLGripper");
+    }else{
+        t_msg.traj.joint_names.push_back("navX");
+        t_msg.traj.joint_names.push_back("navY");
+        t_msg.traj.joint_names.push_back("dummyZ");
+        t_msg.traj.joint_names.push_back("dummyRX");
+        t_msg.traj.joint_names.push_back("dummyRY");
+        t_msg.traj.joint_names.push_back("RotTheta");
+        for(unsigned int i=1;i<r->getNumberOfJoints();++i){
+            JointDevice *j=r->getJoint(i);
+            if(j->getNumberOfDof()!=1){
+                //error?
+            }else{
+                t_msg.traj.joint_names.push_back(j->getName());
+            }
+        }
     }
 
     int nb_dof = std::min<long unsigned int>(t_msg.traj.joint_names.size()+6,r->getRobotStruct()->nb_dof);
