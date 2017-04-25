@@ -1,3 +1,5 @@
+//Copyright © 2017 CNRS-LAAS
+
 #include <iostream>
 #include <string>
 #include <vector>

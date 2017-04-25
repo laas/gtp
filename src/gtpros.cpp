@@ -1,3 +1,5 @@
+//Copyright © 2017 CNRS-LAAS
+
 #include "gtp/gtpros.hpp"
 
 

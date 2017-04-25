@@ -1,3 +1,5 @@
+//Copyright © 2017 CNRS-LAAS
+
 #ifndef GTPROS_H
 #define GTPROS_H
 
@@ -38,6 +40,10 @@ public:
     GtpRos(ros::NodeHandle *nh);
     ~GtpRos();
 
+    /**
+     * @brief init
+     * @return
+     */
     bool init();
     void run();
 
