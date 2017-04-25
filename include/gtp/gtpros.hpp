@@ -37,6 +37,7 @@ namespace move3d{
 class GtpRos
 {
 public:
+    /// constructor
     GtpRos(ros::NodeHandle *nh);
     ~GtpRos();
 
@@ -45,8 +46,12 @@ public:
      * @return
      */
     bool init();
+    /**
+     * @brief starts spinning the listenners (actions, services and topics)
+     */
     void run();
 
+private:
     void planCb(const gtp_ros_msgs::PlanGoalConstPtr &request);
     /**
      * @brief worldUpdateCB
@@ -63,7 +68,7 @@ public:
     bool publishTrajCb(gtp_ros_msgs::PublishTrajRequest &req,gtp_ros_msgs::PublishTrajResponse &resp);
     bool getDetailsCb(gtp_ros_msgs::GetDetailsRequest &req,gtp_ros_msgs::GetDetailsResponse &resp);
 
-protected:
+private:
     ros::NodeHandle *_nh;
     ros::NodeHandle *_nh_ws;
     ros::CallbackQueue *_ws_cb_queue;
